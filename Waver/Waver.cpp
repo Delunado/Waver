@@ -101,15 +101,37 @@ double osc(double dHertz, double dTime, int nType, double dLFOHertz = 0.0, doubl
     }
 }
 
+struct Instrument {
+    double dVolume = 1.0;
+    sEnvelopeADSR env;
+
+    virtual double Sound(double dTime, double dFrequency) = 0;
+};
+
+struct GhostInstrument : public Instrument {
+
+    GhostInstrument() {
+        env.dAttackTime = 0.025;
+        env.dDecayTime = 0.25;
+        env.dStartAmplitude = 0.75;
+        env.dSustainAmplitude = 1.0;
+        env.dReleaseTime = 0.6;
+    }
+
+    virtual double Sound(double dTime, double dFrequency) override {
+        double dOutput = env.GetAmplitude(dTime) * (osc(dFrequency * 1.0, dTime, 0, 5.0, 0.01));
+
+        return dOutput;
+    }
+};
+
+Instrument* voice = nullptr;
+
 double MakeNoise(double dTime)
 {
-    double dOuputput = envelope.GetAmplitude(dTime) *
-        (osc(dFrequencyOutput * 1.0, dTime, 0, 5.0, 0.01)
-         //osc(dFrequencyOutput * 0.75, dTime, 1, 0.1, 5.0) +
-         //osc(dFrequencyOutput * 1.0, dTime, 3, 0.1, 5.0)
-        );
+    double dOutput = voice->Sound(dTime, dFrequencyOutput);
 
-    return dOuputput * 0.5;
+    return dOutput * 0.5;
 }
 
 int main()
@@ -125,6 +147,8 @@ int main()
     double dOctaveBaseFrequency = 220.0;
     double d12thRootOf2 = pow(2.0, 1.0 / 12.0);
 
+    voice = new GhostInstrument();
+
     int nCurrentKey = -1;
     bool bKeyPressed = false;
 
@@ -135,7 +159,7 @@ int main()
             if ( GetAsyncKeyState((unsigned char)("ZSXCFVGBNJMK\xbcL\xbe\xbf"[i])) & 0x8000) {
                 if (nCurrentKey != i) {
                     dFrequencyOutput = dOctaveBaseFrequency * pow(d12thRootOf2, i);
-                    envelope.NoteOn(sound.GetTime()); 
+                    voice->env.NoteOn(sound.GetTime());
                     nCurrentKey = i;
                 }
 
@@ -146,7 +170,7 @@ int main()
         if (!bKeyPressed) {
             if (nCurrentKey != -1) {
                 nCurrentKey = -1;
-                envelope.NoteOff(sound.GetTime());
+                voice->env.NoteOff(sound.GetTime());
             }
         }
     }
